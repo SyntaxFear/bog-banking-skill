@@ -4,6 +4,9 @@
 # One-line install (no clone needed):
 #   curl -fsSL https://raw.githubusercontent.com/SyntaxFear/claude-bog-banking/main/install.sh | bash
 #
+# Pin to a specific version:
+#   curl -fsSL https://raw.githubusercontent.com/SyntaxFear/claude-bog-banking/main/install.sh | BOG_SKILL_REF=v1.0.0 bash
+#
 # Or, from a local clone:
 #   bash install.sh
 #
@@ -29,11 +32,12 @@ if [ -n "$SELF_DIR" ]; then
 else
   command -v curl >/dev/null 2>&1 || { echo "Error: 'curl' is required for one-line install."; exit 1; }
   command -v tar  >/dev/null 2>&1 || { echo "Error: 'tar' is required for one-line install."; exit 1; }
-  echo "Downloading $SKILL_NAME from github.com/$REPO ..."
+  REF="${BOG_SKILL_REF:-main}"
+  echo "Downloading $SKILL_NAME ($REF) from github.com/$REPO ..."
   TMP="$(mktemp -d)"; CLEANUP="$TMP"
-  curl -fsSL "https://github.com/$REPO/archive/refs/heads/main.tar.gz" | tar xz -C "$TMP"
-  SRC="$TMP/claude-bog-banking-main"
-  [ -f "$SRC/SKILL.md" ] || { echo "Error: download did not contain the skill."; rm -rf "$CLEANUP"; exit 1; }
+  curl -fsSL "https://github.com/$REPO/archive/$REF.tar.gz" | tar xz -C "$TMP"
+  SRC="$(find "$TMP" -mindepth 1 -maxdepth 1 -type d | head -1)"
+  [ -n "$SRC" ] && [ -f "$SRC/SKILL.md" ] || { echo "Error: download did not contain the skill."; exit 1; }
 fi
 
 install_to () {

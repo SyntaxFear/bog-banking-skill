@@ -1,5 +1,9 @@
 # bog-banking
 
+[![version](https://img.shields.io/github/v/release/SyntaxFear/claude-bog-banking?sort=semver)](https://github.com/SyntaxFear/claude-bog-banking/releases)
+[![license: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![read-only](https://img.shields.io/badge/access-read--only-blue)](#-security--privacy)
+
 A **read-only Agent Skill** that lets an AI coding agent — **Claude Code**,
 **Codex**, or any [`SKILL.md`](https://code.claude.com/docs/en/skills)-compatible
 agent — read your **Bank of Georgia Business Online** account and help you
@@ -69,8 +73,13 @@ That's it — no clone needed. It installs into both tools:
 - **Claude Code** → `~/.claude/skills/bog-banking/`
 - **Codex** → `~/.agents/skills/bog-banking/`
 
-> 🔎 **Trust note:** the one-liner runs the current `main` branch (unpinned,
-> unsigned) over HTTPS. If you'd rather read it first, use the clone method
+**Pin to a released version** (recommended for production):
+```bash
+curl -fsSL https://raw.githubusercontent.com/SyntaxFear/claude-bog-banking/main/install.sh | BOG_SKILL_REF=v1.0.0 bash
+```
+
+> 🔎 **Trust note:** the plain one-liner runs the current `main` branch
+> (unpinned, unsigned) over HTTPS. Pin a version (above) or use the clone method
 > below and inspect `install.sh` and `scripts/bog.py` before running.
 
 <details>

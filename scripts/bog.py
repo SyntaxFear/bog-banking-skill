@@ -33,6 +33,8 @@ from datetime import date, timedelta
 # --------------------------------------------------------------------------
 # Locations / constants
 # --------------------------------------------------------------------------
+__version__ = "1.0.0"
+
 KEYCHAIN_SERVICE = "bog-business-online"
 CONFIG_DIR = os.path.expanduser("~/.config/bog-banking")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")        # non-secret
@@ -711,7 +713,12 @@ def cmd_discover(args, cfg, mode):
                      if found else "No balances found — double-check the IBAN.")}
 
 
+def cmd_version(args, cfg, mode):
+    return {"command": "version", "ok": True, "data": {"version": __version__}}
+
+
 COMMANDS = {
+    "version": cmd_version,
     "whoami": cmd_whoami,
     "save-credentials": cmd_save_credentials,
     "forget-credentials": cmd_forget_credentials,
@@ -730,6 +737,7 @@ def build_parser():
     p = argparse.ArgumentParser(description="Read-only BOG Business Online access.")
     p.add_argument("--mock", action="store_true", help="Use sample data.")
     sub = p.add_subparsers(dest="command", required=True)
+    sub.add_parser("version", help="Print the skill version.")
     sub.add_parser("whoami", help="Check whether credentials exist and work.")
     sub.add_parser("save-credentials", help="Store credentials (JSON on stdin).")
     sub.add_parser("forget-credentials", help="Delete stored credentials.")
