@@ -10,6 +10,7 @@ install_to () {
   mkdir -p "$(dirname "$dest")"
   rm -rf "$dest"
   cp -R "$SRC" "$dest"
+  rm -rf "$dest/.git" "$dest/scripts/__pycache__"   # don't ship repo/cache cruft
   echo "  installed -> $tool: $dest"
 }
 

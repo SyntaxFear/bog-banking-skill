@@ -12,6 +12,8 @@ anything.
 ## Install
 
 ```bash
+git clone https://github.com/SyntaxFear/claude-bog-banking.git
+cd claude-bog-banking
 bash install.sh
 ```
 
@@ -19,8 +21,10 @@ This copies the skill into both tools:
 - Claude Code → `~/.claude/skills/bog-banking/`
 - Codex → `~/.agents/skills/bog-banking/`
 
-(Or copy this folder there manually. On Windows, place it in your tool's skills
-directory.)
+(Or copy this folder into your agent's skills directory manually. On Windows,
+place it in your tool's skills directory. Any `SKILL.md`-compatible agent works.)
+
+Requires **Python 3** (standard library only — nothing to `pip install`).
 
 ## Use it
 
