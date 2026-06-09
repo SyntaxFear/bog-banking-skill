@@ -20,6 +20,7 @@ import argparse
 import base64
 import json
 import os
+import re
 import select
 import shutil
 import subprocess
@@ -46,11 +47,43 @@ MAX_STATEMENT_PAGES = 50
 # Given an IBAN we probe these to auto-discover which currencies it holds.
 DISCOVER_CURRENCIES = ["GEL", "USD", "EUR", "GBP"]
 
+# Credentials/tokens are ONLY ever sent to these BOG hosts, and only over HTTPS.
+ALLOWED_HOST_SUFFIXES = (".bog.ge", ".businessonline.ge")
+ALLOWED_HOSTS_EXACT = ("bog.ge", "businessonline.ge")
+
+# Strict shapes so user/server-supplied values can't be injected into URLs.
+_IBAN_RE = re.compile(r"^[A-Z0-9]{15,34}$")
+_CCY_RE = re.compile(r"^[A-Z]{3}$")
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
 IS_MAC = sys.platform == "darwin" and shutil.which("security") is not None
+
+# Authenticated calls must NOT follow redirects (a 3xx could forward the
+# Authorization header to another host). Treat any redirect as an error.
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+_OPENER = urllib.request.build_opener(_NoRedirect)
 
 
 def emit(obj):
     print(json.dumps(obj, ensure_ascii=False, indent=2))
+
+
+def _norm_iban(s):
+    return re.sub(r"\s+", "", (s or "")).upper()
+
+
+def _check_secret_url(url, what):
+    """Allow sending secrets/tokens ONLY to https BOG hosts. Raises otherwise."""
+    parsed = urllib.parse.urlparse(url or "")
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme != "https":
+        raise BogError("insecure_url", f"Refusing to send {what} over non-HTTPS.")
+    if host not in ALLOWED_HOSTS_EXACT and not host.endswith(ALLOWED_HOST_SUFFIXES):
+        raise BogError("untrusted_host",
+                       f"Refusing to send {what} to non-BOG host '{host}'.")
 
 
 # --------------------------------------------------------------------------
@@ -121,10 +154,18 @@ def load_secret_creds():
 def save_secret_creds(cid, secret):
     if IS_MAC:
         return _keychain_set("CLIENT_ID", cid) and _keychain_set("CLIENT_SECRET", secret)
-    os.makedirs(CONFIG_DIR, exist_ok=True)
-    with open(CREDS_FILE, "w", encoding="utf-8") as f:
+    # Non-macOS file backend: create with 0600 from the start (no world-readable
+    # window), in a 0700 dir, and swap in atomically.
+    os.makedirs(CONFIG_DIR, mode=0o700, exist_ok=True)
+    try:
+        os.chmod(CONFIG_DIR, 0o700)
+    except OSError:
+        pass
+    tmp = CREDS_FILE + ".tmp"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
         json.dump({"client_id": cid, "client_secret": secret}, f)
-    os.chmod(CREDS_FILE, 0o600)
+    os.replace(tmp, CREDS_FILE)  # atomic; keeps 0600
     return True
 
 
@@ -199,10 +240,9 @@ def add_accounts(cfg, items):
     accounts = cfg.setdefault("accounts", [])
     added = []
     for it in items:
-        iban = (it.get("iban") if isinstance(it, dict) else it) or ""
-        iban = iban.strip()
-        if not iban:
-            continue
+        iban = _norm_iban(it.get("iban") if isinstance(it, dict) else it)
+        if not _IBAN_RE.match(iban):
+            continue  # skip anything that isn't a plausible IBAN (15-34 [A-Z0-9])
         entry = _find_account(cfg, iban)
         if entry is None:
             entry = {"iban": iban, "label": "", "currencies": []}
@@ -211,10 +251,10 @@ def add_accounts(cfg, items):
         entry.setdefault("currencies", [])
         if isinstance(it, dict):
             cur = (it.get("currency") or "").strip().upper()
-            if cur and cur not in entry["currencies"]:
+            if cur and _CCY_RE.match(cur) and cur not in entry["currencies"]:
                 entry["currencies"].append(cur)
             if it.get("label") and not entry.get("label"):
-                entry["label"] = it["label"].strip()
+                entry["label"] = str(it["label"]).strip()
     return added
 
 
@@ -250,8 +290,12 @@ def resolve_targets(args, cfg, token):
     Defaults to EVERYTHING — every stored IBAN across every currency it holds —
     unless the user is specific via --account and/or --currency. IBAN/currency
     are optional for the user but always resolved here for the API."""
-    acc = getattr(args, "account", None)
+    acc = _norm_iban(getattr(args, "account", None)) if getattr(args, "account", None) else None
     ccy = getattr(args, "currency", None)
+    if acc and not _IBAN_RE.match(acc):
+        raise BogError("bad_iban", f"'{acc}' is not a valid IBAN (15-34 letters/digits).")
+    if ccy and not _CCY_RE.match(ccy.upper()):
+        raise BogError("bad_currency", f"'{ccy}' is not a valid 3-letter currency code.")
     if acc:
         entries = [_find_account(cfg, acc) or {"iban": acc, "currencies": []}]
     else:
@@ -262,11 +306,11 @@ def resolve_targets(args, cfg, token):
     targets = []
     for entry in entries:
         iban = entry.get("iban")
-        if not iban:
-            continue
+        if not iban or not _IBAN_RE.match(iban):
+            continue  # never let a malformed stored IBAN reach a URL
         curs = [ccy.upper()] if ccy else (_entry_currencies(entry) or probe_currencies(cfg, iban, token))
         for c in curs:
-            if (iban, c) not in targets:
+            if _CCY_RE.match(c or "") and (iban, c) not in targets:
                 targets.append((iban, c))
     if not targets:
         raise BogError("no_currency",
@@ -290,6 +334,7 @@ def get_token(cfg):
         raise BogError("no_keys",
                        "No credentials stored yet. Ask the user for their BOG "
                        "Client ID and Client Secret, then save them.")
+    _check_secret_url(cfg.get("token_url", ""), "credentials")
     body = urllib.parse.urlencode(
         {"grant_type": "client_credentials", "scope": "corp"}).encode()
     auth = base64.b64encode(f"{cid}:{secret}".encode()).decode()
@@ -297,7 +342,7 @@ def get_token(cfg):
     req.add_header("Authorization", "Basic " + auth)
     req.add_header("Content-Type", "application/x-www-form-urlencoded")
     try:
-        with urllib.request.urlopen(req, timeout=25) as resp:
+        with _OPENER.open(req, timeout=25) as resp:
             data = json.loads(resp.read().decode("utf-8", "replace"))
         token = data.get("access_token")
         if not token:
@@ -320,11 +365,12 @@ def get_token(cfg):
 
 def api_get(cfg, token, path):
     url = cfg["api_base"].rstrip("/") + "/" + path.lstrip("/")
+    _check_secret_url(url, "the access token")
     req = urllib.request.Request(url, method="GET")
     req.add_header("Authorization", "Bearer " + token)
     req.add_header("Accept", "application/json")
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with _OPENER.open(req, timeout=30) as resp:
             raw = resp.read().decode("utf-8", "replace")
         return json.loads(raw) if raw.strip() else None
     except urllib.error.HTTPError as e:
@@ -478,6 +524,12 @@ def cmd_add_account(args, cfg, mode):
     if not items:
         return {"command": "add-account", "ok": False, "error": "missing",
                 "message": "Provide --iban GE.. or pipe an accounts list."}
+    # reject obviously malformed IBANs up front with a clear message
+    bad = [_norm_iban(it.get("iban") if isinstance(it, dict) else it) for it in items]
+    bad = [b for b in bad if not _IBAN_RE.match(b)]
+    if bad and len(bad) == len(items):
+        return {"command": "add-account", "ok": False, "error": "bad_iban",
+                "message": f"Not a valid IBAN: {', '.join(bad)} (expected 15-34 letters/digits)."}
     added = add_accounts(cfg, items)
     save_config(cfg)
     return {"command": "add-account", "mode": mode, "ok": True,
@@ -488,7 +540,7 @@ def cmd_add_account(args, cfg, mode):
 
 def cmd_remove_account(args, cfg, mode):
     """Remove an IBAN (or just one currency from it) — only on explicit request."""
-    iban = getattr(args, "iban", None)
+    iban = _norm_iban(getattr(args, "iban", None)) if getattr(args, "iban", None) else None
     if not iban:
         return {"command": "remove-account", "ok": False, "error": "missing",
                 "message": "Provide --iban GE.. (optionally --currency to drop one currency)."}
@@ -538,6 +590,9 @@ def cmd_balance(args, cfg, mode):
 def cmd_statement(args, cfg, mode):
     to = args.to or date.today().isoformat()
     frm = getattr(args, "from_date", None) or (date.today() - timedelta(days=30)).isoformat()
+    if not _DATE_RE.match(frm) or not _DATE_RE.match(to):
+        return {"command": "statement", "mode": mode, "ok": False, "error": "bad_date",
+                "message": "Dates must be in YYYY-MM-DD format."}
     if mode == "mock":
         out = [{"iban": a["iban"], "currency": a["currency"], "from": frm, "to": to,
                 "Records": (mock_records(frm, to, a["currency"]) if a["currency"] == "GEL" else [])}
@@ -554,6 +609,7 @@ def cmd_statement(args, cfg, mode):
             gen = api_get(cfg, token, f"statement/v2/{iban}/{ccy}/{frm}/{to}") or {}
             records = list(gen.get("Records") or [])
             stid = gen.get("Id")
+            stid = str(stid) if stid is not None and str(stid).isdigit() else None
             total = gen.get("Count") or len(records)
             # V2 pagination: the call above is page 1; extra pages start at 2.
             page = 2
@@ -591,6 +647,9 @@ def cmd_today(args, cfg, mode):
 
 def cmd_rates(args, cfg, mode):
     cur = (getattr(args, "currency", None) or "USD").upper()
+    if not _CCY_RE.match(cur):
+        return {"command": "rates", "mode": mode, "ok": False, "error": "bad_currency",
+                "message": "Currency must be a 3-letter code (e.g. USD)."}
     if mode == "mock":
         return {"command": "rates", "mode": mode, "ok": True,
                 "data": {"currency": cur, "nbg": 2.71,
@@ -680,20 +739,20 @@ def cmd_discover(args, cfg, mode):
     listed = try_list_accounts(cfg, token)
     if listed:
         add_accounts(cfg, listed)            # merge any list-endpoint results
-    if getattr(args, "account", None):
-        add_accounts(cfg, [{"iban": args.account}])
+    acc = _norm_iban(args.account) if getattr(args, "account", None) else None
+    if acc:
+        add_accounts(cfg, [{"iban": acc}])
 
-    entries = ([_find_account(cfg, args.account)] if getattr(args, "account", None)
-               else list(cfg.get("accounts", [])))
-    entries = [e for e in entries if e and e.get("iban")]
+    entries = ([_find_account(cfg, acc)] if acc else list(cfg.get("accounts", [])))
+    entries = [e for e in entries if e and e.get("iban") and _IBAN_RE.match(e["iban"])]
     if not entries:
         raise BogError("no_account",
                        "BOG has no account-list endpoint and no IBAN is stored. "
                        "Ask the user for at least one IBAN (add-account).")
 
     override = getattr(args, "currencies", None)
-    probe_list = ([c.strip().upper() for c in override.split(",") if c.strip()]
-                  if override else DISCOVER_CURRENCIES)
+    probe_list = ([c for c in (s.strip().upper() for s in override.split(","))
+                   if _CCY_RE.match(c)] if override else DISCOVER_CURRENCIES) or DISCOVER_CURRENCIES
     found = []
     for entry in entries:
         iban = entry["iban"]

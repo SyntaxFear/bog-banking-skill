@@ -59,7 +59,22 @@ them in any file — the skill stores them in your OS keychain.
 
 ---
 
-## 💻 Step 2 — Install the skill
+## 💻 Step 2 — Install the skill (one line)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/SyntaxFear/claude-bog-banking/main/install.sh | bash
+```
+
+That's it — no clone needed. It installs into both tools:
+- **Claude Code** → `~/.claude/skills/bog-banking/`
+- **Codex** → `~/.agents/skills/bog-banking/`
+
+> 🔎 **Trust note:** the one-liner runs the current `main` branch (unpinned,
+> unsigned) over HTTPS. If you'd rather read it first, use the clone method
+> below and inspect `install.sh` and `scripts/bog.py` before running.
+
+<details>
+<summary>Prefer to clone first, or inspect before running?</summary>
 
 ```bash
 git clone https://github.com/SyntaxFear/claude-bog-banking.git
@@ -67,12 +82,9 @@ cd claude-bog-banking
 bash install.sh
 ```
 
-This copies the skill into both tools:
-- **Claude Code** → `~/.claude/skills/bog-banking/`
-- **Codex** → `~/.agents/skills/bog-banking/`
-
-(Or copy this folder into your agent's skills directory manually — works for any
-`SKILL.md`-compatible agent. On Windows, place it in your tool's skills folder.)
+Or copy the folder into your agent's skills directory manually — works for any
+`SKILL.md`-compatible agent. On Windows, place it in your tool's skills folder.
+</details>
 
 **Requires Python 3** (standard library only — nothing to `pip install`).
 
