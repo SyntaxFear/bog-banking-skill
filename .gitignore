@@ -1,0 +1,12 @@
+# Never commit secrets or local state.
+# (Credentials are stored OUTSIDE this folder — in the OS keychain or
+#  ~/.config/bog-banking/ — but ignore these just in case.)
+**/credentials.json
+**/config.json
+*.pem
+*.key
+.env
+
+# Python
+__pycache__/
+*.pyc
