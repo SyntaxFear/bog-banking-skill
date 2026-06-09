@@ -43,57 +43,57 @@ python3 scripts/bog.py whoami
 
 **Step 2 — react to the result:**
 
-- `ok: true` → credentials are stored and valid. Proceed to the user's request.
-
 - `error: "no_keys"` → no credentials yet. **Ask the user only for their Client
-  ID and Client Secret** (don't ask for IBAN or currency yet). Tell them where
-  to get them if needed: register an app at `bonline.bog.ge/admin/api` (choose
-  **Client Credentials Flow**). Save by piping JSON on **stdin** (keeps the
-  secret off the command line):
+  ID and Client Secret** (not the IBAN yet). Where to get them: register an app
+  at `bonline.bog.ge/admin/api` (choose **Client Credentials Flow**). Save by
+  piping JSON on **stdin** (keeps the secret off the command line):
   ```
   python3 scripts/bog.py save-credentials <<'JSON'
   {"client_id":"<id>","client_secret":"<secret>"}
   JSON
   ```
-  Then run **discover** — it logs in, tries to fetch the account list from BOG,
-  and auto-detects each account's currencies:
-  ```
-  python3 scripts/bog.py discover
-  ```
-  - If `discover` returns accounts → show the user their accounts/balances and
-    proceed. (No IBAN needed — BOG returned them, or they were already saved.)
-  - If `discover` returns `error: "no_account"` → BOG has no account-list
-    endpoint, so now ask the user for their **account IBAN** (e.g. `GE..BG...`;
-    it's **not secret** — it's on their statements/invoices and in their BOG
-    app; they can give several). Add each IBAN, then discover again:
-    ```
-    python3 scripts/bog.py add-account --iban <IBAN>
-    python3 scripts/bog.py discover
-    ```
-    (Currency is auto-detected — never ask for it.)
+  Then run `whoami` again to confirm the keys work, and continue below.
 
-## Managing accounts (persistent)
+- `error: "invalid_credentials"` → the keys were rejected — **either** wrong keys
+  **or** API access not activated by the user's BOG banker. Tell them both
+  possibilities and **offer to re-enter** new keys (same `save-credentials`).
+  Wipe first if needed: `python3 scripts/bog.py forget-credentials`.
 
-Stored IBANs **persist** and are reused on every call. Add or remove them
-whenever the user asks — you don't re-ask for ones already stored:
+- `ok: true` → credentials are valid.
+  - If `data.accounts_configured` > 0 → accounts already set up; proceed to the
+    user's request.
+  - If it's `0` → no account yet, so set one up (next section). Do **not** run a
+    bare `discover` and do **not** try to auto-find accounts — BOG has no
+    account-list endpoint, so the IBAN must come from the user.
 
-- "add account GE.." / "also check my other account" →
-  `python3 scripts/bog.py add-account --iban <IBAN>` then `discover`
-  (adding MERGES — it never removes existing IBANs)
-- "remove / forget account GE.." →
-  `python3 scripts/bog.py remove-account --iban <IBAN>`
-  (only delete when the user explicitly asks)
-- "what accounts do you have?" → `python3 scripts/bog.py accounts`
+## Setting up accounts (ask one at a time)
 
-- `error: "invalid_credentials"` → stored credentials were rejected. This means
-  **either** the keys are wrong **or** the user's BOG API access isn't activated
-  yet. Tell the user both possibilities, ask them to verify the keys and/or
-  confirm activation with their banker, and **offer to re-enter** new
-  credentials (same `save-credentials` step). To wipe stored credentials first:
-  `python3 scripts/bog.py forget-credentials`.
+BOG cannot list a company's accounts, so you collect IBANs from the user — one
+at a time, only as many as they want:
 
-Once `whoami` is `ok`, the credentials are reused automatically on every later
-call — don't ask again.
+1. Ask for **one** account IBAN (e.g. `GE..BG...`). It's **not secret** — it's on
+   their statements/invoices and in their BOG app. Do NOT ask for currency.
+2. Add it and detect its currencies + balances:
+   ```
+   python3 scripts/bog.py add-account --iban <IBAN>
+   python3 scripts/bog.py discover --account <IBAN>
+   ```
+3. Show the discovered balances, then **ask: "Do you want to add another
+   account?"**
+   - **Yes** → repeat from step 1 with the next IBAN.
+   - **No** → stop asking; continue with the account(s) stored.
+
+Adding always MERGES (existing IBANs are kept). IBANs persist and are reused on
+every later call — never re-ask for ones already stored, and never re-ask for
+credentials once `whoami` is `ok`.
+
+## Managing accounts later
+
+- "add another account GE.." → `add-account --iban <IBAN>` then
+  `discover --account <IBAN>` (then ask if they want yet another)
+- "remove / forget account GE.." → `remove-account --iban <IBAN>`
+  (only when the user explicitly asks)
+- "what accounts do you have?" → `accounts`
 
 ## Read-only commands
 | Command | Returns |

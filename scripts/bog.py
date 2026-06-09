@@ -662,93 +662,29 @@ def cmd_rates(args, cfg, mode):
                      "commercial": api_get(cfg, token, f"rates/commercial/{cur}")}}
 
 
-# BOG's API has NO account-list endpoint — verified live (2026-06-09) against
-# the real API: 18 candidate paths + JWT claims + Swagger/OpenAPI all 404/empty.
-# We keep ONE cheap best-effort probe in case BOG ever adds it; otherwise the
-# skill falls back to the user-provided IBAN.
-LIST_ACCOUNT_PATHS = ["accounts"]
-
-
-def _extract_accounts(payload):
-    """Best-effort: turn an account-list response into [{iban, currency?}].
-    Tolerates many shapes since this endpoint (if it exists) is undocumented."""
-    items = None
-    if isinstance(payload, list):
-        items = payload
-    elif isinstance(payload, dict):
-        for k in ("accounts", "Accounts", "data", "Data", "result", "Result", "items"):
-            if isinstance(payload.get(k), list):
-                items = payload[k]
-                break
-    out = []
-    for it in (items or []):
-        if not isinstance(it, dict):
-            continue
-        iban = next((str(it[k]) for k in
-                     ("Iban", "IBAN", "iban", "AccountNumber", "accountNumber",
-                      "Account", "account") if it.get(k)), None)
-        if not iban:
-            continue
-        currs = []
-        for k in ("Currencies", "currencies"):
-            if isinstance(it.get(k), list):
-                currs = [str(c).upper() for c in it[k] if c]
-                break
-        if not currs:
-            cur = next((it[k] for k in
-                        ("Currency", "currency", "CurrencyCode", "currencyCode")
-                        if it.get(k)), None)
-            if cur:
-                currs = [str(cur).upper()]
-        if not currs:
-            for k in ("Balances", "balances"):
-                if isinstance(it.get(k), list):
-                    currs = [str(b.get("Currency") or b.get("currency")).upper()
-                             for b in it[k]
-                             if isinstance(b, dict) and (b.get("Currency") or b.get("currency"))]
-        out.extend([{"iban": iban, "currency": c} for c in currs] or [{"iban": iban}])
-    return out
-
-
-def try_list_accounts(cfg, token):
-    """Attempt the (undocumented) account-list endpoint. Returns [] if none."""
-    for path in LIST_ACCOUNT_PATHS:
-        try:
-            payload = api_get(cfg, token, path)
-        except BogError:
-            continue
-        accts = _extract_accounts(payload)
-        if accts:
-            return accts
-    return []
-
-
 def cmd_discover(args, cfg, mode):
-    """Find the user's accounts + currencies and save them.
+    """Detect each stored IBAN's currencies (and current balances) and save them.
 
-    1) Try an account-list endpoint (in case BOG has an undocumented one) — if
-       it returns IBANs, we don't even need the user to provide one.
-    2) Otherwise use the user's provided IBAN(s).
-    Then confirm each (iban, currency) by checking its balance."""
+    BOG has NO account-list endpoint (verified live), so IBANs only ever come
+    from the user via add-account. This just probes which currencies an IBAN
+    holds — it never tries to auto-discover account numbers."""
     if mode == "mock":
         found = [{**a, **mock_balance(a["iban"], a["currency"])} for a in MOCK_ACCOUNTS]
         return {"command": "discover", "mode": mode, "ok": True, "data": found,
-                "source": "mock", "note": "Sample: discovered accounts/currencies."}
+                "note": "Sample: detected currencies."}
 
     token = get_token(cfg)
-    listed = try_list_accounts(cfg, token)
-    if listed:
-        add_accounts(cfg, listed)            # merge any list-endpoint results
     acc = _norm_iban(args.account) if getattr(args, "account", None) else None
     if acc:
+        if not _IBAN_RE.match(acc):
+            raise BogError("bad_iban", f"'{acc}' is not a valid IBAN (15-34 letters/digits).")
         add_accounts(cfg, [{"iban": acc}])
 
     entries = ([_find_account(cfg, acc)] if acc else list(cfg.get("accounts", [])))
     entries = [e for e in entries if e and e.get("iban") and _IBAN_RE.match(e["iban"])]
     if not entries:
         raise BogError("no_account",
-                       "BOG has no account-list endpoint and no IBAN is stored. "
-                       "Ask the user for at least one IBAN (add-account).")
+                       "No IBAN stored. Ask the user for an account IBAN (add-account).")
 
     override = getattr(args, "currencies", None)
     probe_list = ([c for c in (s.strip().upper() for s in override.split(","))
@@ -770,10 +706,9 @@ def cmd_discover(args, cfg, mode):
         if cur_found:
             entry["currencies"] = cur_found   # refresh; entry kept regardless
     save_config(cfg)                          # persist (keeps all stored IBANs)
-    src = "list_endpoint" if listed else "probe"
-    return {"command": "discover", "mode": mode, "ok": True, "data": found, "source": src,
-            "note": (f"Found {len(found)} balance(s) via {src}; saved their currencies."
-                     if found else f"No balances found via {src} — double-check the IBAN.")}
+    return {"command": "discover", "mode": mode, "ok": True, "data": found,
+            "note": (f"Detected currencies for {len(entries)} account(s); {len(found)} balance(s)."
+                     if found else "No balances found — double-check the IBAN.")}
 
 
 COMMANDS = {
