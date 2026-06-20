@@ -1,6 +1,6 @@
-# bog-banking
+# bog-banking-skill
 
-[![version](https://img.shields.io/github/v/release/SyntaxFear/claude-bog-banking?sort=semver)](https://github.com/SyntaxFear/claude-bog-banking/releases)
+[![version](https://img.shields.io/github/v/release/SyntaxFear/bog-banking-skill?sort=semver)](https://github.com/SyntaxFear/bog-banking-skill/releases)
 [![license: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![read-only](https://img.shields.io/badge/access-read--only-blue)](#-security--privacy)
 
@@ -39,43 +39,44 @@ your BOG app.
 
 ## 🔑 Step 1 — Get your BOG API credentials
 
-You need a **Client ID** and **Client Secret** from Bank of Georgia. These are
-free if you have a BOG **business** account with Business Internet Banking.
+You need a **Client ID** and a **Client Secret** from Bank of Georgia (some BOG
+screens call these the *Public Key* / *Secret Key* — same values). They're free
+if you have a BOG **business** account with Business Internet Banking.
 
-1. Log in to **[bonline.bog.ge](https://bonline.bog.ge)** (your business
-   internet bank).
-2. Open the API admin page: **[bonline.bog.ge/admin/api](https://bonline.bog.ge/admin/api)**.
-3. Click **Register application** and fill in:
-   - **Application name** (and international/English name) — e.g. `My Banking Assistant`
-   - **Logo URL** — any image link works (e.g. your website logo); not important
-   - **Redirect URI** — put `https://localhost` (not used for this skill)
-4. When asked to **choose the integration type**, pick **Client Credentials
-   Flow** (server-to-server — logs in automatically with the keys, no browser).
-5. After registering, the application page shows your **Client ID** and
-   **Client Secret**. Copy both. The secret is shown once — keep it safe.
+1. **Log in** to **[bonline.bog.ge](https://bonline.bog.ge/)** with your Business
+   Online credentials.
+2. Open the API admin page **[bonline.bog.ge/admin/api](https://bonline.bog.ge/admin/api)**
+   and click **Add new**.
+3. Choose the integration type **Client Credentials Flow** (the automatic type —
+   it authorizes with the Client ID + Client Secret, with no username/password),
+   give the **API client name** any value, and confirm with the **one-time code
+   (OTP)**.
+4. BOG then shows your **Client ID** and **Client Secret** — copy both. The
+   secret is shown once; keep it safe.
 
 > ⚠️ **If login later fails with `invalid_credentials`:** double-check the keys,
 > and ask your **BOG business banker to enable API access** for your application
 > — on some accounts API access must be switched on before the keys work.
 
 You'll paste these into the agent on first use (see Step 3). You do **not** put
-them in any file — the skill stores them in your OS keychain.
+them in any file — the skill stores them in your OS keychain. Full walkthrough:
+[reference/getting-credentials.md](reference/getting-credentials.md).
 
 ---
 
 ## 💻 Step 2 — Install the skill (one line)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/SyntaxFear/claude-bog-banking/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/SyntaxFear/bog-banking-skill/main/install.sh | bash
 ```
 
 That's it — no clone needed. It installs into both tools:
-- **Claude Code** → `~/.claude/skills/bog-banking/`
-- **Codex** → `~/.agents/skills/bog-banking/`
+- **Claude Code** → `~/.claude/skills/bog-banking-skill/`
+- **Codex** → `~/.agents/skills/bog-banking-skill/`
 
 **Pin to a released version** (recommended for production):
 ```bash
-curl -fsSL https://raw.githubusercontent.com/SyntaxFear/claude-bog-banking/main/install.sh | BOG_SKILL_REF=v1.0.0 bash
+curl -fsSL https://raw.githubusercontent.com/SyntaxFear/bog-banking-skill/main/install.sh | BOG_SKILL_REF=v1.1.0 bash
 ```
 
 > 🔎 **Trust note:** the plain one-liner runs the current `main` branch
@@ -86,8 +87,8 @@ curl -fsSL https://raw.githubusercontent.com/SyntaxFear/claude-bog-banking/main/
 <summary>Prefer to clone first, or inspect before running?</summary>
 
 ```bash
-git clone https://github.com/SyntaxFear/claude-bog-banking.git
-cd claude-bog-banking
+git clone https://github.com/SyntaxFear/bog-banking-skill.git
+cd bog-banking-skill
 bash install.sh
 ```
 
@@ -109,7 +110,8 @@ will walk you through a one-time setup:
 2. It asks for your **account IBAN** (e.g. `GE..BG...`) — it's on any statement
    or the home screen of your BOG app. It's **not secret**. You can give several.
    *(BOG has no API to list your accounts, so you provide the IBAN once.)*
-3. It auto-detects which currencies that account holds and you're ready.
+3. It auto-detects which currencies that account holds, then shows your first
+   **balance** — you're set up.
 
 After that, just ask naturally:
 
@@ -178,8 +180,8 @@ Add `--mock` to any read command for sample data.
 
 | Message | Meaning | Fix |
 |---|---|---|
-| Skill doesn't trigger | Skills load at session start | Open a new session, or type `/bog-banking` |
-| `no_keys` | First use | Give the agent your Client ID + Secret |
+| Skill doesn't trigger | Skills load at session start | Open a new session, or type `/bog-banking-skill` |
+| `no_keys` | First use | Give the agent your Client ID + Client Secret |
 | `invalid_credentials` | Wrong keys **or** API access not activated | Re-check keys; ask your BOG banker to enable API access |
 | `no_account` | No IBAN stored | Give the agent your account IBAN |
 

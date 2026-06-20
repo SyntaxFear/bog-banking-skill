@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Install the bog-banking skill into Claude Code and Codex.
+# Install the bog-banking-skill into Claude Code, Codex, and other SKILL.md agents.
 #
 # One-line install (no clone needed):
-#   curl -fsSL https://raw.githubusercontent.com/SyntaxFear/claude-bog-banking/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/SyntaxFear/bog-banking-skill/main/install.sh | bash
 #
 # Pin to a specific version:
-#   curl -fsSL https://raw.githubusercontent.com/SyntaxFear/claude-bog-banking/main/install.sh | BOG_SKILL_REF=v1.0.0 bash
+#   curl -fsSL https://raw.githubusercontent.com/SyntaxFear/bog-banking-skill/main/install.sh | BOG_SKILL_REF=v1.1.0 bash
 #
 # Or, from a local clone:
 #   bash install.sh
@@ -13,8 +13,8 @@
 # Re-run any time to update.
 set -euo pipefail
 
-REPO="SyntaxFear/claude-bog-banking"
-SKILL_NAME="bog-banking"
+REPO="SyntaxFear/bog-banking-skill"
+SKILL_NAME="bog-banking-skill"
 CLAUDE_DIR="$HOME/.claude/skills/$SKILL_NAME"
 CODEX_DIR="$HOME/.agents/skills/$SKILL_NAME"
 
@@ -55,6 +55,6 @@ install_to "$CODEX_DIR"  "Codex"
 [ -n "$CLEANUP" ] && rm -rf "$CLEANUP"
 
 echo
-echo "Done. In Claude Code or Codex, just ask: \"what's my BOG balance?\""
-echo "On first use the agent will ask for your BOG credentials and store them"
-echo "securely in your OS keychain (never in a file)."
+echo "Done. In Claude Code, Codex, or your SKILL.md agent, just ask: \"what's my BOG balance?\""
+echo "On first use the agent will walk you through getting your BOG API keys and"
+echo "store them securely in your OS keychain (never in a file)."
