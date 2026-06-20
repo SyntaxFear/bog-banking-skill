@@ -37,34 +37,7 @@ your BOG app.
 
 ---
 
-## 🔑 Step 1 — Get your BOG API credentials
-
-You need a **Client ID** and a **Client Secret** from Bank of Georgia (some BOG
-screens call these the *Public Key* / *Secret Key* — same values). They're free
-if you have a BOG **business** account with Business Internet Banking.
-
-1. **Log in** to **[bonline.bog.ge](https://bonline.bog.ge/)** with your Business
-   Online credentials.
-2. Open the API admin page **[bonline.bog.ge/admin/api](https://bonline.bog.ge/admin/api)**
-   and click **Add new**.
-3. Choose the integration type **Client Credentials Flow** (the automatic type —
-   it authorizes with the Client ID + Client Secret, with no username/password),
-   give the **API client name** any value, and confirm with the **one-time code
-   (OTP)**.
-4. BOG then shows your **Client ID** and **Client Secret** — copy both. The
-   secret is shown once; keep it safe.
-
-> ⚠️ **If login later fails with `invalid_credentials`:** double-check the keys,
-> and ask your **BOG business banker to enable API access** for your application
-> — on some accounts API access must be switched on before the keys work.
-
-You'll paste these into the agent on first use (see Step 3). You do **not** put
-them in any file — the skill stores them in your OS keychain. Full walkthrough:
-[reference/getting-credentials.md](reference/getting-credentials.md).
-
----
-
-## 💻 Step 2 — Install the skill (one line)
+## 💻 Step 1 — Install the skill (one line)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/SyntaxFear/bog-banking-skill/main/install.sh | bash
@@ -100,20 +73,12 @@ Or copy the folder into your agent's skills directory manually — works for any
 
 ---
 
-## 💬 Step 3 — Use it
+## 💬 Step 2 — Just ask
 
-Just talk to your agent. The first time you ask anything about your bank, it
-will walk you through a one-time setup:
-
-1. It asks for your **Client ID** and **Client Secret** (from Step 1) and stores
-   them securely.
-2. It asks for your **account IBAN** (e.g. `GE..BG...`) — it's on any statement
-   or the home screen of your BOG app. It's **not secret**. You can give several.
-   *(BOG has no API to list your accounts, so you provide the IBAN once.)*
-3. It auto-detects which currencies that account holds, then shows your first
-   **balance** — you're set up.
-
-After that, just ask naturally:
+That's all the setup you need up front. The **first** time you ask anything about
+your bank, the agent runs a quick one-time, guided setup — **it teaches you how
+to get your BOG API keys**, asks you to paste them, asks for your account IBAN,
+and then shows your first balance. Nothing to prepare in advance:
 
 ```
 "What's my balance?"
@@ -124,8 +89,47 @@ After that, just ask naturally:
 "Add my second account GE....."
 ```
 
+What the one-time setup does:
+1. Walks you through getting your **Client ID** and **Client Secret** and stores
+   them securely (your OS keychain — never a file in this project).
+2. Asks for your **account IBAN** (e.g. `GE..BG...`) — it's on any statement or
+   your BOG app home screen, and it's **not secret**. You can add several.
+   *(BOG has no API to list your accounts, so you provide the IBAN once.)*
+3. Auto-detects which currencies that account holds, then shows your first
+   **balance** — you're set up.
+
 > 💡 Want to try it before you have credentials? It has a sample-data mode:
 > `python3 scripts/bog.py --mock balance`
+
+---
+
+## 🔑 Getting your BOG API credentials
+
+**You don't need to do this before installing** — the skill walks you through it
+the first time you use it (Step 2). It's documented here for reference, or in
+case you'd like to have your keys ready in advance.
+
+You need a **Client ID** and a **Client Secret** from Bank of Georgia (some BOG
+screens call these the *Public Key* / *Secret Key* — same values). They're free
+if you have a BOG **business** account with Business Internet Banking.
+
+1. **Log in** to **[bonline.bog.ge](https://bonline.bog.ge/)** with your Business
+   Online credentials.
+2. Open the API admin page **[bonline.bog.ge/admin/api](https://bonline.bog.ge/admin/api)**
+   and click **Add new**.
+3. Choose the integration type **Client Credentials Flow** (the automatic type —
+   it authorizes with the Client ID + Client Secret, with no username/password),
+   give the **API client name** any value, and confirm with the **one-time code
+   (OTP)**.
+4. BOG then shows your **Client ID** and **Client Secret** — copy both. The
+   secret is shown once; keep it safe.
+
+> ⚠️ **If login later fails with `invalid_credentials`:** double-check the keys,
+> and ask your **BOG business banker to enable API access** for your application
+> — on some accounts API access must be switched on before the keys work.
+
+Full walkthrough (including how to retrieve keys for an existing application):
+[reference/getting-credentials.md](reference/getting-credentials.md).
 
 ---
 
